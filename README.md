@@ -1,7 +1,7 @@
 **🧘✨ Yoga GPT – Agent Chatbot**
 
 Yoga GPT is a Streamlit-based chatbot that helps users explore yoga poses, sequences, and anatomy.  
-It uses LangChain agents with function calling and displays pose images and yoga sequences.
+It uses LangGraph/LangChain agents with function calling and displays pose images and yoga sequences.
 
 
 **🌟 Features:**
@@ -113,4 +113,5 @@ It uses LangChain agents with function calling and displays pose images and yoga
 - Tiktoken
 
 (See requirements.txt for full list)
+
 
