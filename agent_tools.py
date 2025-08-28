@@ -4,7 +4,8 @@ import json
 import time
 import requests
 import streamlit as st
-
+from langchain_openai import ChatOpenAI
+from langchain_core.messages import SystemMessage, HumanMessage
 from bs4 import BeautifulSoup
 from typing import List, Dict
 from openai import OpenAI
@@ -17,6 +18,7 @@ load_dotenv()
 # OpenAI client
 # -------------------------
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+llm_client = ChatOpenAI(model_name="gpt-4o-mini", temperature=0)
 
 # -------------------------
 # Pose data
@@ -48,110 +50,165 @@ COMMON_POSES = list(POSE_DATA.keys())
 # -------------------------
 # Tools
 # -------------------------
-def get_pose_info_online(pose_name: str, messages=None):
-    system_prompt = {"role": "system", "content": "You are a yoga assistant. Provide clear, accurate details about yoga poses, including description, benefits, and contraindications."}
-    convo = [system_prompt]
-    if messages:
-        convo.extend(messages)
-    convo.append({"role": "user", "content": f"Tell me about the yoga pose '{pose_name}'."})
+
+llm_client = ChatOpenAI(model_name="gpt-4o-mini", temperature=0)
+
+def get_pose_info_online(args):
+    """
+    Returns detailed info about a yoga pose using an LLM.
+    Accepts either a string (pose name) or a dict with 'pose' key.
+    """
+    # Extract pose name
+    if isinstance(args, dict):
+        pose_name = args.get("pose") or args.get("pose_name")
+    else:
+        pose_name = args
+
+    if not pose_name:
+        return {"pose": None, "description": "No pose provided.", "benefits": [], "contraindications": [], "url": "#"}
+
+    # Prepare conversation for LLM
+    messages = [
+        {"role": "system", "content": "You are a yoga assistant. Provide clear, accurate details about yoga poses including description, benefits, and contraindications."},
+        {"role": "user", "content": f"Tell me about the yoga pose '{pose_name}'."}
+    ]
 
     try:
-        response = client.chat.completions.create(model="gpt-4o-mini", messages=convo, temperature=0)
-        content = response.choices[0].message.content
-        return {"pose": pose_name, "description": content, "benefits": [], "contraindications": []}
+        response = llm_client.invoke(messages)
+        content = response.content
+
+        return {
+            "pose": pose_name,
+            "description": content,
+            "benefits": [],  # can enrich later if needed
+            "contraindications": [],
+            "url": get_pose_image(pose_name)["url"]  # ✅ Add the Yoga Journal link here
+        }
+
     except Exception as e:
         print(f"Error fetching info for pose '{pose_name}': {e}")
-        return {"pose": pose_name, "description": "Sorry, I couldn't retrieve information about this pose.", "benefits": [], "contraindications": []}
+        return {
+            "pose": pose_name,
+            "description": "Sorry, I couldn't retrieve information about this pose.",
+            "benefits": [],
+            "contraindications": [],
+            "url": "#"
+        }
 
 
-def create_sequence(duration: int, energy: str, injuries: list):
-    available_poses = [name for name, info in POSE_DATA.items() if not any(i.lower() in c.lower() for c in info.get("contraindications", []) for i in injuries)]
+
+def create_sequence(args):
+    if isinstance(args, str):
+        try:
+            args = json.loads(args)
+        except json.JSONDecodeError:
+            args = {}
+
+    duration = int(args.get("duration", 20))
+    energy = args.get("energy", "medium")
+    injuries = args.get("injuries") or []
+
+    # Filter out poses that conflict with user-selected injuries
+    available_poses = [
+        name for name, info in POSE_DATA.items()
+        if not any(
+            i.lower() in c.lower()
+            for c in info.get("contraindications", [])
+            for i in injuries  # only filter if user has selected this injury
+        )
+    ]
+
     sequence = []
     remaining_time = duration
     default_pose_duration = 2
+
     while remaining_time >= default_pose_duration and available_poses:
         pose_name = random.choice(available_poses)
         pose_info = POSE_DATA[pose_name]
-        sequence.append({"pose": pose_name, "duration": f"{default_pose_duration} min", "benefits": pose_info.get("benefits", []), "contraindications": pose_info.get("contraindications", [])})
+
+        sequence.append({
+            "pose": pose_name,
+            "duration": f"{default_pose_duration} min",
+            "description": "A yoga posture to follow.",
+            "benefits": pose_info.get("benefits", []),
+            "contraindications": pose_info.get("contraindications", []),  # always show
+            "image_url": get_pose_image(pose_name)["url"],
+        })
+
         remaining_time -= default_pose_duration
         available_poses.remove(pose_name)
-    return {"duration": duration, "energy": energy, "injuries": injuries, "sequence": sequence}
 
-def get_pose_image(pose: str):
-    slug = pose.lower().replace(" ", "-")
-    url = f"https://www.yogajournal.com/poses/{slug}"
-    return {"pose": pose, "url": url}
-
-tools = [
-    {"name": "get_pose_info_online", "func": get_pose_info_online, "description": "Provides detailed information about a yoga pose.", "parameters": {"type": "object", "properties": {"pose_name": {"type": "string"}}, "required": ["pose_name"]}},
-    {"name": "create_sequence", "func": create_sequence, "description": "Generates a yoga sequence based on duration, energy, and injuries.", "parameters": {"type": "object", "properties": {"duration": {"type": "integer"}, "energy": {"type": "string"}, "injuries": {"type": "array", "items": {"type": "string"}}}, "required": ["duration"]}},
-    {"name": "get_pose_image", "func": get_pose_image, "description": "Fetches a Yoga Journal image URL for a given pose name.", "parameters": {"type": "object", "properties": {"pose": {"type": "string"}}, "required": ["pose"]}}
-]
-
-# -------------------------
-# Call agent
-# -------------------------
-def call_agent(user_input: str, messages: List[Dict]):
-    system_prompt = {
-        "role": "system",
-        "content": (
-            "You are a yoga assistant. Respond naturally in text. "
-            "Whenever you mention a yoga pose, include its Yoga Journal URL. "
-            "For sequences, add the URL for each pose in the sequence."
-        )
+    return {
+        "duration": duration,
+        "energy": energy,
+        "injuries": injuries,
+        "sequence": sequence
     }
 
-    convo = [system_prompt] + messages
-    convo.append({"role": "user", "content": user_input})
 
-    try:
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=convo,
-            temperature=0,
-            functions=[{
-                "name": t["name"],
-                "description": t["description"],
-                "parameters": t["parameters"]
-            } for t in tools],
-            function_call="auto"
-        )
+def create_multi_day_routine(args):
+    if isinstance(args, str):
+        try:
+            args = json.loads(args)
+        except json.JSONDecodeError:
+            args = {}
 
-        message = response.choices[0].message
+    days = int(args.get("days", 3))
+    duration = int(args.get("duration", 20))
+    energy = args.get("energy", "medium")
+    injuries = args.get("injuries") or []
 
-        # ----- Token usage calculation -----
-        encoding = tiktoken.encoding_for_model("gpt-4o-mini")
-        total_tokens = sum([len(encoding.encode(m["content"])) for m in convo])
-        st.session_state["last_tokens"] = total_tokens  # store in session for display
-        # -----------------------------------
+    routine = []
 
-        # handle function call
-        if hasattr(message, "function_call") and message.function_call:
-            func_name = message.function_call.name
-            args_str = message.function_call.arguments
-            import json
-            try:
-                args_dict = json.loads(args_str)
-            except Exception:
-                args_dict = {}
+    for day in range(1, days + 1):
+        # Generate a sequence
+        sequence_data = create_sequence({
+            "duration": duration,
+            "energy": energy,
+            "injuries": injuries
+        })["sequence"]
 
-            tool_func = next(t["func"] for t in tools if t["name"] == func_name)
-            result = tool_func(**args_dict)
+        enriched_sequence = []
+        for step in sequence_data:
+            pose_name = step["pose"]
+            pose_info = POSE_DATA.get(pose_name, {})
+            enriched_sequence.append({
+                "pose": pose_name,
+                "duration": step.get("duration"),
+                "description": step.get("description", "A yoga posture to follow."),
+                "benefits": pose_info.get("benefits", []),
+                "contraindications": pose_info.get("contraindications", []),
+                "image_url": get_pose_image(pose_name)["url"]
+            })
 
-            # attach images if applicable
-            if func_name == "get_pose_info_online":
-                result["image_url"] = get_pose_image(result["pose"])["url"]
-                return result
-            elif func_name == "create_sequence":
-                for pose in result["sequence"]:
-                    pose["image_url"] = get_pose_image(pose["pose"])["url"]
-                return result
-            elif func_name == "get_pose_image":
-                return result
+        routine.append({
+            "day": f"Day {day}",
+            "sequence": enriched_sequence,
+            "duration": duration,
+            "energy": energy,
+            "injuries": injuries
+        })
 
-        # plain text response
-        return message.content
+    return routine
 
-    except Exception as e:
-        print(f"Error in call_agent: {e}")
-        return "Sorry, I couldn't generate a response right now."
+
+
+def get_pose_image(pose):
+    """
+    Returns a Yoga Journal URL for a given pose.
+    Accepts either a string or a dict with key 'pose'.
+    """
+    # Handle dict input
+    if isinstance(pose, dict):
+        pose_name = pose.get("pose")
+    else:
+        pose_name = pose
+
+    if not pose_name:
+        return {"pose": None, "url": "#"}
+
+    slug = pose_name.lower().replace(" ", "-")
+    url = f"https://www.yogajournal.com/poses/{slug}"
+    return {"pose": pose_name, "url": url}
+
+
