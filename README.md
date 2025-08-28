@@ -1,55 +1,75 @@
-**🧘✨ Yoga GPT – Agent Chatbot**
+**🧘✨ Yoga Agent **
 
-Yoga GPT is a Streamlit-based chatbot that helps users explore yoga poses, sequences, and anatomy.  
-It uses LangGraph/LangChain agents with function calling and displays pose images and yoga sequences.
+Yoga Agent is a Streamlit-based AI chatbot that helps users explore yoga poses, sequences, and anatomy.
+It uses a LangChain agent with tools, function calling, long-term memory, and token tracking
 
 
 **🌟 Features:**
-- 💬 Conversational Chatbot – Ask questions about yoga poses or request full sequences.
-- 🛠 Agent with Tools – The agent chooses between:
-    - 📌 Pose Info Tool – returns benefits, contraindications, and image
-    - 📅 Sequence Generator Tool – creates tailored yoga sequences, including multi-day routines
-- 🧠 Memory – Keeps track of conversation context.
-- 🔢 Token Usage Tracking – Displays tokens consumed per conversation.
-- ☁️ Deployable on Render – Share your chatbot with the world!
+💬 Conversational Chatbot – Ask questions about yoga poses or request full sequences.
+
+🛠 Agent with Tools – The agent dynamically chooses between:
+
+📌 Pose Info Tool – Returns benefits, contraindications, description, and a link to Yoga Journal.
+
+📅 Sequence Generator Tool – Generates tailored yoga sequences, including single-day sequences.
+
+📆 Multi-Day Routine Tool – Generates 2–7 day routines with different sequences each day.
+
+🔎 Enrichment Buttons – Fetch detailed descriptions, benefits, contraindications, and links for any pose.
+
+🧠 Memory – Keeps track of conversation context.
+
+🔢 Token Usage Tracking – Displays tokens consumed per conversation using tiktoken.
+
+☁️ Deployable on Render – Share your chatbot with the world!
 
 
 **🗂 Architecture & Flowchart:**
 
 ```
+                          ┌─────────────────────────────┐
+                          │           Agent             │
+                          │     (LangChain + Memory)    │
+                          └─────────────┬───────────────┘
+                                        │
+          ┌─────────────────────────────┼─────────────────────────────┐
+          │                             │                             │
+┌─────────▼─────────┐         ┌─────────▼─────────┐         ┌─────────▼─────────┐
+│   Pose Info Tool   │         │  Sequence Tool    │         │ Multi-Day Routine │
+│     📌 Returns     │         │    📅 Generates   │         │       📆 Generates │
+│ description,       │         │ single-day        │         │ multiple sequences │
+│ benefits,          │         │ sequences         │         │ for 2–7 days       │
+│ contraindications, │         │ tailored by       │         │ different each day │
+│ Yoga Journal link  │         │ energy, duration, │         │                     │
+│                    │         │ injuries          │         │                     │
+└─────────┬─────────┘         └─────────┬─────────┘         └─────────┬─────────┘
+          │                             │                             │
+          │                             │                             │
+          └─────────────┬───────────────┴─────────────┬───────────────┘
+                        ▼                                  
+                ┌────────────────┐
+                │ Enrichment     │
+                │ Button/Function│
+                │ Fetches detailed│
+                │ description,   │
+                │ benefits,       │
+                │ contraindications│
+                │ Yoga Journal link│
+                └─────────┬───────┘
+                          │
+                          ▼
+                    ┌────────────┐
+                    │ Streamlit  │
+                    │    UI 🖥   │
+                    │ Displays:  │
+                    │ - Chat     │
+                    │ - Sequences│
+                    │ - Images   │
+                    │ - Links    │
+                    │ - Tokens   │
+                    └────────────┘
 
-                    ┌─────────────────────────┐
-                    │         Agent           │
-                    │  (LangChain + Memory)   │
-                    └─────────┬──────────────┘
-                              │
-               ┌──────────────┴───────────────┐
-               │                              │
-        ┌──────▼──────┐                ┌──────▼──────┐
-        │ Pose Info   │                │ Sequence    │
-        │ Tool 📌     │                │ Generator 📅 │
-        └──────┬──────┘                └──────┬──────┘
-               │                              │
-   ┌───────────▼───────────┐       ┌──────────▼───────────┐
-   │ Fetch pose data        │       │ Generate sequence(s)  │
-   │ Return description     │       │ Include duration,     │
-   │ Return benefits        │       │ energy, injuries      │
-   │ Return contraindications│      │ Add images for poses  │
-   │ Return image           │       │ Multi-day routines    │
-   └───────────┬───────────┘       └──────────┬───────────┘
-               │                              │
-               └───────────────┬──────────────┘
-                               ▼
-                          ┌─────────┐
-                          │ Streamlit│
-                          │ UI 🖥    │
-                          │ Displays│
-                          │ chat,   │
-                          │ sequences,
-                          │ images, │
-                          │ token   │
-                          │ usage   │
-                          └─────────┘
+
 
 
 ```
@@ -101,7 +121,7 @@ It uses LangGraph/LangChain agents with function calling and displays pose image
 
 📷 **Screenshots:**
 
-<img width="1381" height="649" alt="Screenshot 2025-08-28 at 09 49 07" src="https://github.com/user-attachments/assets/246ae728-5501-4924-b537-cedb2d26a503" />
+<img width="1351" height="702" alt="Screenshot 2025-08-28 at 16 13 18" src="https://github.com/user-attachments/assets/ad862fde-d8dc-4af7-923e-17abd0486604" />
 
 
 📝 **Requirements:**
@@ -113,5 +133,6 @@ It uses LangGraph/LangChain agents with function calling and displays pose image
 - Tiktoken
 
 (See requirements.txt for full list)
+
 
 
